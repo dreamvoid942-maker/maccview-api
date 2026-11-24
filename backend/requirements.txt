@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+pydantic
+python-dotenv
+requests
+# Goose Feather 1.6 feature engine + encrypted gateway client.
+numpy
+pandas
+cryptography
+# Postgres driver, used only when DB_BACKEND=postgres. The [binary] extra
+# bundles libpq so no system Postgres client install is required.
+psycopg[binary]
