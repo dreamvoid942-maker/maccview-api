@@ -52,12 +52,23 @@ def scan_cost(conn, mode: str) -> int:
     return model_cost(conn, key, SCAN_COST_FALLBACKS.get(mode, SCAN_COST_FALLBACKS["mini"]))
 
 
+def forecast_model_row(conn) -> dict:
+    """Display metadata for the model doing the work.
+
+    Names and versions live in the `models` catalogue so a new release is a
+    row update via /admin/models — no client release and no hardcoded label.
+    """
+    row = conn.execute(
+        "SELECT name, version FROM models WHERE key=?", (FORECAST_MODEL_KEY,)
+    ).fetchone()
+    if not row:
+        return {"name": "Oracle Vision", "version": ""}
+    return {"name": row["name"] or "Oracle Vision", "version": row["version"] or ""}
+
+
 def forecast_model_name(conn) -> str:
     """Display name for the model doing the work, for the reason string."""
-    row = conn.execute(
-        "SELECT name FROM models WHERE key=?", (FORECAST_MODEL_KEY,)
-    ).fetchone()
-    return (row["name"] if row else "") or "Oracle Vision"
+    return forecast_model_row(conn)["name"]
 
 BASE_PRICES = {
     "EURUSD": 1.0852,
@@ -405,7 +416,9 @@ def _live_forecast(asset: str, timeframe: str, n: int) -> dict:
     elif direction == "SELL":
         tp, sl = round(entry - 1.5 * atr, dec), round(entry + 1.0 * atr, dec)
     else:
-        tp, sl = entry, entry
+        # STAND ASIDE produces no trade plan. Null levels render as "-" in the
+        # app instead of repeating the entry price or collapsing to NaN.
+        tp, sl = None, None
 
     return {
         "asset": asset, "timeframe": _norm_tf(timeframe), "direction": direction,
@@ -414,6 +427,9 @@ def _live_forecast(asset: str, timeframe: str, n: int) -> dict:
         "expected_move": round(abs(tp - entry), dec),
         "horizon": timeframe, "regime": "model", "risk": "medium", "risk_level": "medium",
         "probability": round(float(p), 4),
+        # The model's probability is the real 0-1 score. UI shows p*100 (e.g.
+        # 0.494 -> 49.4%), never a separate derived "confidence".
+        "model_probability_pct": round(float(p) * 100.0, 1),
         "model": settings.LW_MODEL, "ct": settings.LW_CT, "verdict": side,
         "explanation": (
             f"{settings.LW_MODEL} scores {p:.3f} on {asset} ({_norm_tf(timeframe)}); "
@@ -563,7 +579,8 @@ def forecast(body: ForecastIn, authorization: str | None = Header(default=None))
     conn = get_db()
     try:
         cost = forecast_cost(conn)
-        model_name = forecast_model_name(conn)
+        model_row = forecast_model_row(conn)
+        model_name = model_row["name"]
     finally:
         conn.close()
 
@@ -601,6 +618,11 @@ def forecast(body: ForecastIn, authorization: str | None = Header(default=None))
     out["credits"] = balance
     out["cost"] = cost
     out["model"] = FORECAST_MODEL_KEY
+    # Human-readable, server-controlled labels. Update the models row to
+    # rename the model or ship a new version; the app never hardcodes either.
+    out["model_name"] = model_name
+    out["model_version"] = model_row["version"]
+    out["model_short"] = str(settings.LW_MODEL or "").strip().title() or model_name
     return out
 
 
