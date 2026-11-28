@@ -245,7 +245,7 @@ alter table public.admin_audit      enable row level security;
 -- these rows at request time, so a change applies with no restart.
 insert into public.models ("key", name, version, credit_cost, kind, active, sort_order, updated_at)
 values
-  ('oracle-vision-1',      'Oracle Vision 1',      '1',  1, 'forecast', 1, 10, 0),
+  ('oracle-vision-1',      'Feather 1.6 Summit',   '1.6', 1, 'forecast', 1, 10, 0),
   ('oracle-vision-1-mini', 'Oracle Vision 1 Mini', '1',  1, 'forecast', 1, 20, 0),
   ('scan-mini',            'Scan Mini',            '1',  5, 'scan',     1, 30, 0),
   ('scan-moderate',        'Scan Moderate',        '1', 10, 'scan',     1, 40, 0),
